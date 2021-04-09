@@ -1,0 +1,129 @@
+#!/bin/bash
+# Play live video stream from Markiza TV (www.markiza.sk) using mpv player
+#
+# Playback requires free registration at www.markiza.sk, then place your credentials
+# to .markizarc in your home directory as described below
+#
+# Dependencies:
+#  - wget
+#  - mpv
+#
+# Invocation:
+#  markiza_cli [channel_name] [optional mpv parameters]
+# 
+#  channel_name may be:
+#    markiza (default if not specified)
+#    dajto
+#    doma
+#
+#  you must use channel_name if you want to pass parameters to mpv
+#
+# Examples:
+#  - Play Markiza with the default settings
+#     markiza_cli
+#  - Play Markiza with caca output
+#     markiza_cli markiza -vo=caca
+#  - Play Doma and record to file
+#     markiza_cli doma --stream-record=foo.ts
+#
+# Known issues:
+#  - all streams are SD, HD streams requires paid plan/subscription to voyo.markiza.sk
+#
+# Raise issues/send PRs at github.com/jose1711/markiza_cli
+#
+
+markiza_rc=~/.markizarc
+# ~/.markizarc must contain login information for markiza website
+# in the following format:
+# markiza_mail=user@mail
+# markiza_pass=password
+
+max_login_attempts=5
+
+channel="${1-markiza}"
+
+if [ $# -gt 0 ]
+then
+  channel="$1"
+  shift
+fi
+
+case "${channel}" in
+  "markiza") channel_link="1-markiza"
+             title="Markíza LIVE"
+             ;;
+  "dajto") channel_link="2-dajto"
+           title="Dajto LIVE"
+           ;;
+  "doma") channel_link="3-doma"
+          title="Doma LIVE"
+          ;;
+  *) echo "Unknown channel name (must be markiza|dajto|doma)"
+     exit 1
+     ;;
+esac
+
+if [ ! -f "${markiza_rc}" ]
+then
+  cat <<HERE
+Create ${markiza_rc} file containing credential information for markiza.sk website:
+markiza_mail=user@mail
+markiza_pass=password
+HERE
+  exit 1
+fi
+
+. ~/.markizarc
+
+if [ -z "${markiza_mail}" -o -z "${markiza_pass}" ]
+then
+  echo "No value for markiza_mail and/or markiza_pass not found in rc file (${markiza_rc}). Please fix it and retry."
+  exit 1
+fi
+
+cookies=$(mktemp)
+function httpget
+ {
+  wget -O - -q --header "DNT: 1" --load-cookies "${cookies}" --save-cookies "${cookies}" "$@"
+ }
+
+# echo "Cookie file: ${cookies}"
+
+# get token & login
+for i in $(seq 1 ${max_login_attempts})
+do
+  token=$(wget -q --save-cookies "${cookies}" -O - https://moja.markiza.sk/ | grep -Po 'name="_token_" value="\K[^"]*' | head -1 | sed 's/=/%3D/')
+  # echo "Token: ${token}"
+  post_data='email='${markiza_mail}'&password='${markiza_pass}'&login=Prihl%C3%A1si%C5%A5+sa&_token_='"${token}"'&_do=content1-loginForm-form-submit' 
+  httpget --header 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8' --post-data="${post_data}" https://moja.markiza.sk/ >/dev/null
+  cat "${cookies}" | grep -q matoken
+  if [ $? -ne 0 ]
+  then
+    echo "Invalid login, attempt $i"
+    sleep 1
+  else
+    break
+  fi
+
+done
+
+cat "${cookies}" | grep -q matoken
+if [ $? -ne 0 ]
+then
+  echo "Login not successful (bad login/password maybe?)"
+  rm "${cookies}"
+  exit 1
+fi
+
+# get custom link
+http_data=$(httpget "https://videoarchiv.markiza.sk/live/${channel_link}")
+custom_link=$(echo "${http_data}" | grep -Po '<iframe src="\K[^"]*' | sed -n '/videoarchiv/s/&amp;/\&/pg')
+
+# dig out stream link
+embed_link=$(httpget "${custom_link}" | grep -Po '<iframe src="https://media.cms.markiza.sk/embed/\K[^"]*')
+embed_link="https://media.cms.markiza.sk/embed/${embed_link}"
+m3u8_link=$(httpget "${embed_link}"  --header 'Referer: '${custom_link} | grep -Po '"src":"\K[^"]*' | sed 's#\\/#/#g')
+stream_link=$(httpget "${m3u8_link}" --header 'Referer: https://media.cms.markiza.sk/' | sed -n '/^slo/{p;q;}')
+
+rm "${cookies}"
+mpv ${m3u8_link%/*}/${stream_link} --title=${title} --http-header-fields='Referer: https://media.cms.markiza.sk/' "$@"
