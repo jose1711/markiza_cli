@@ -126,4 +126,4 @@ m3u8_link=$(httpget "${embed_link}"  --header 'Referer: '${custom_link} | grep -
 stream_link=$(httpget "${m3u8_link}" --header 'Referer: https://media.cms.markiza.sk/' | sed -n '/^slo/{p;q;}')
 
 rm "${cookies}"
-mpv ${m3u8_link%/*}/${stream_link} --title=${title} --http-header-fields='Referer: https://media.cms.markiza.sk/' "$@"
+mpv ${m3u8_link%/*}/${stream_link} --title="${title}" --http-header-fields='Referer: https://media.cms.markiza.sk/' "$@"
