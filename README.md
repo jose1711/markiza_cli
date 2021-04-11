@@ -14,7 +14,7 @@ markiza_pass=password
 
 # Invocation:
 ```
-markiza_cli [channel_name] [optional mpv parameters]
+markiza_cli [-url] [channel_name] [optional mpv parameters]
 ```
  
 `channel_name` may be:
