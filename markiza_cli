@@ -67,14 +67,14 @@ case "${channel}" in
   "doma") channel_link="3-doma"
           title="Doma LIVE"
           ;;
-  *) echo "Unknown channel name (must be markiza|dajto|doma)"
+  *) echo "Unknown channel name (must be markiza|dajto|doma)" >&2
      exit 1
      ;;
 esac
 
 if [ ! -f "${markiza_rc}" ]
 then
-  cat <<HERE
+  cat >&2 <<HERE
 Create ${markiza_rc} file containing credential information for markiza.sk website:
 markiza_mail=user@mail
 markiza_pass=password
@@ -86,7 +86,7 @@ fi
 
 if [ -z "${markiza_mail}" -o -z "${markiza_pass}" ]
 then
-  echo "No value for markiza_mail and/or markiza_pass not found in rc file (${markiza_rc}). Please fix it and retry."
+  echo "No value for markiza_mail and/or markiza_pass not found in rc file (${markiza_rc}). Please fix it and retry." >&2
   exit 1
 fi
 
@@ -119,7 +119,7 @@ done
 cat "${cookies}" | grep -q matoken
 if [ $? -ne 0 ]
 then
-  echo "Login not successful (bad login/password maybe?)"
+  echo "Login not successful (bad login/password maybe?)" >&2
   rm "${cookies}"
   exit 1
 fi
