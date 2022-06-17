@@ -101,7 +101,7 @@ function httpget
 # get token & login
 for i in $(seq 1 ${max_login_attempts})
 do
-  token=$(wget -q --save-cookies "${cookies}" -O - https://moja.markiza.sk/ | grep -Po 'name="_token_" value="\K[^"]*' | head -1 | sed 's/=/%3D/')
+  token=$(wget --keep-session-cookies -q --save-cookies "${cookies}" -O - https://moja.markiza.sk/ | grep -Po 'name="_token_" value="\K[^"]*' | head -1 | sed 's/=/%3D/')
   # echo "Token: ${token}"
   post_data='email='${markiza_mail}'&password='${markiza_pass}'&login=Prihl%C3%A1si%C5%A5+sa&_token_='"${token}"'&_do=content1-loginForm-form-submit' 
   httpget --header 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8' --post-data="${post_data}" https://moja.markiza.sk/ >/dev/null
